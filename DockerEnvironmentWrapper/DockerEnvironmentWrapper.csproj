@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>docker_environment_builder</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Docker.DotNet" Version="3.125.15" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Logger\Logger.csproj" />
+    </ItemGroup>
+
+</Project>
