@@ -33,7 +33,7 @@ class Program
         await docker.StartContainerAsync(mssqlContainerId);
         
         // copy some file to volume
-        await docker.CopyToContainerAsync(
+        string copiedFile = await docker.CopyToContainerAsync(
             mssqlContainerId,
             @"D:/Temps/SamplePE.sql",
             "/var/opt/mssql/"

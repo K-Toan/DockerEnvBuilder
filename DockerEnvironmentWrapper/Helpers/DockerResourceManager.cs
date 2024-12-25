@@ -149,14 +149,18 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
     #region Volume
 
-    public async Task CopyToContainerAsync(string containerId, string sourceFilePath, string destinationFilePath,
+    public async Task<string> CopyToContainerAsync(string containerId, string sourceFilePath, string destinationFilePath,
         bool overwrite = true)
     {
         // create tarfile
         string tarFilePath = TarCompressor.CreateTarFile(sourceFilePath);
-        if (File.Exists(tarFilePath))
-            logger.Log($"Tar file {tarFilePath} created.");
-        
+        if (!File.Exists(tarFilePath))
+        {
+            logger.Log($"Cannot create tar file {tarFilePath}.");
+            return null;
+        }
+        logger.Log($"Tar file {tarFilePath} has been created.");
+
         try
         {
             // Copy tar file into container
@@ -179,11 +183,13 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
         finally
         {
-            if (File.Exists(tarFilePath))
-            {
-                File.Delete(tarFilePath);
-            }
+            // delete temporary tar file
+            File.Delete(tarFilePath);
+            logger.Log($"Tar file {tarFilePath} has been deleted.");
         }
+
+        // return copied file path
+        return Path.Combine(Path.GetDirectoryName(destinationFilePath), Path.GetFileName(sourceFilePath));
     }
 
     public async Task<string> EnsureVolumeExistsAsync(string volumeName)
@@ -222,7 +228,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
                 return removed;
             }
 
-            logger.Log($"Volumn {volumeName} was not found.");
+            logger.Log($"Volume {volumeName} was not found.");
             return false;
         }
         catch (Exception ex)
