@@ -12,12 +12,7 @@ class Program
         var client = dockerClientWrapper.GetClient();
 
         var docker = new DockerResourceManager(client, logger);
-
-        string networkId = await docker.EnsureNetworkExistsAsync("test-network");
-
-        // Tạo volume
-        // string volumeName = await volumeManager.EnsureVolumeExistsAsync("test-volume:/var/opt/mssql");
-
+        
         // Tạo container
         string mssqlContainerId = await docker.CreateContainerAsync(
             containerName: "test-mssql-container",

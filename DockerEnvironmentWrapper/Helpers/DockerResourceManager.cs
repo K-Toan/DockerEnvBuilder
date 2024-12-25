@@ -9,10 +9,27 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 {
     #region Resource
 
+    public void SetLimit()
+    {
+        // not implemented
+        return;
+    }
+
     #endregion
 
     #region Container
 
+    /// <summary>
+    /// Create a container and return its id.
+    /// </summary>
+    /// <param name="containerName">Name of the container</param>
+    /// <param name="imageName">Name of the image</param>
+    /// <param name="containerPort">Container port</param>
+    /// <param name="hostPort">Host (TCP) port</param>
+    /// <param name="envParams">Environment parameters</param>
+    /// <param name="volumeName">Container volume name</param>
+    /// <param name="networkName">Container network used</param>
+    /// <returns>Return container id or throw if error</returns>
     public async Task<string> CreateContainerAsync(string containerName, string imageName, int containerPort,
         int hostPort, string[] envParams, string volumeName, string networkName)
     {
@@ -71,6 +88,10 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
     }
 
+    /// <summary>
+    /// Start a container.
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
     public async Task StartContainerAsync(string containerId)
     {
         try
@@ -87,6 +108,10 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
     }
 
+    /// <summary>
+    /// Stop a running container.
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
     public async Task StopContainerAsync(string containerId)
     {
         try
@@ -119,6 +144,11 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
     #region Network
 
+    /// <summary>
+    /// Ensure a network is existed.
+    /// </summary>
+    /// <param name="networkName">Name of the network</param>
+    /// <returns>Return network ID or throw if error</returns>
     public async Task<string> EnsureNetworkExistsAsync(string networkName)
     {
         try
@@ -148,7 +178,15 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     #endregion
 
     #region Volume
-
+    
+    /// <summary>
+    /// Copy a file into container volume and return its path.
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
+    /// <param name="sourceFilePath">Path to source file</param>
+    /// <param name="destinationFilePath">Path to destination file/folder</param>
+    /// <param name="overwrite">Overwrite existing destination file/folder</param>
+    /// <returns>Path to copied file</returns>
     public async Task<string> CopyToContainerAsync(string containerId, string sourceFilePath, string destinationFilePath,
         bool overwrite = true)
     {
@@ -192,6 +230,11 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         return Path.Combine(Path.GetDirectoryName(destinationFilePath), Path.GetFileName(sourceFilePath));
     }
 
+    /// <summary>
+    /// Ensure a volume is existed.
+    /// </summary>
+    /// <param name="volumeName">Name of the volume</param>
+    /// <returns>Return volume name of throw if error</returns>
     public async Task<string> EnsureVolumeExistsAsync(string volumeName)
     {
         try
@@ -214,6 +257,11 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
     }
 
+    /// <summary>
+    /// Remove an existing volume.
+    /// </summary>
+    /// <param name="volumeName">Name of the volume</param>
+    /// <returns>Return true if can remove the volume or false if can not</returns>
     public async Task<bool> RemoveVolumeAsync(string volumeName)
     {
         try
