@@ -35,17 +35,18 @@ class Program
         // copy some file to volume
         await docker.CopyToContainerAsync(
             mssqlContainerId,
-            @"D:\Configs\tar.gz",
-            "/var/opt/mssql"
+            @"D:/Temps/SamplePE.sql",
+            "/var/opt/mssql/"
         );
         
+        Console.WriteLine("Press any key to stop container...");
+        Console.ReadKey();
+
         // stop container
-        await Task.Delay(3000);
         await docker.StopContainerAsync(mssqlContainerId);
 
         // remove
-        await Task.Delay(3000);
-        await docker.RemoveVolumeAsync("test-mssql-volume");
+        await docker.RemoveVolumeAsync("/var/opt/mssql");
         await docker.RemoveContainerAsync(mssqlContainerId);
 
         Console.ReadKey();

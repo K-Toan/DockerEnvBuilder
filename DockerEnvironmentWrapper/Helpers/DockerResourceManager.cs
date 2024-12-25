@@ -1,7 +1,7 @@
-using System.IO.Compression;
 using Logger;
 using Docker.DotNet;
 using Docker.DotNet.Models;
+using FileCompressor;
 
 namespace DockerEnvironmentWrapper.Helpers;
 
@@ -149,66 +149,41 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
     #region Volume
 
-    public async Task CopyToContainerAsync(string containerId, string sourcePath, string destinationPath, bool overwrite = true)
+    public async Task CopyToContainerAsync(string containerId, string sourceFilePath, string destinationFilePath,
+        bool overwrite = true)
     {
+        // create tarfile
+        string tarFilePath = TarCompressor.CreateTarFile(sourceFilePath, @"D:/Temps/SamplePE.tar");
+        if (File.Exists(tarFilePath))
+            logger.Log($"Tar file {tarFilePath} created.");
+        
         try
         {
-            using (var tarStream = CreateTar(sourcePath))
+            // Copy tar file into container
+            using (FileStream fs = new FileStream(tarFilePath, FileMode.Open, FileAccess.Read))
             {
-                // send tarball into container
-                await client.Containers.ExtractArchiveToContainerAsync(
-                    containerId,
-                    new ContainerPathStatParameters { Path = destinationPath },
-                    tarStream);
+                var parameters = new ContainerPathStatParameters
+                {
+                    Path = destinationFilePath,
+                    AllowOverwriteDirWithFile = overwrite
+                };
+
+                await client.Containers.ExtractArchiveToContainerAsync(containerId, parameters, fs);
+
+                logger.Log($"{tarFilePath} copied to {destinationFilePath} successfully.");
             }
         }
         catch (Exception ex)
         {
             logger.LogError($"Error copying file to container volume: {ex.Message}");
         }
-    }
-
-    private Stream CreateTar(string sourcePath)
-    {
-        var memoryStream = new MemoryStream();
-        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+        finally
         {
-            // if source path leads to a file
-            if (File.Exists(sourcePath))
+            if (File.Exists(tarFilePath))
             {
-                logger.Log($"Path leads to a file");
-                // include to tar if file
-                var entry = archive.CreateEntry(Path.GetFileName(sourcePath));
-                using (var entryStream = entry.Open())
-                using (var fileStream = File.OpenRead(sourcePath))
-                {
-                    fileStream.CopyTo(entryStream);
-                }
-            }
-            // if source path leads to a directory
-            else if (Directory.Exists(sourcePath))
-            {
-                logger.Log($"Path leads to a directory");
-                // include all files if folder
-                foreach (var filePath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
-                {
-                    var relativePath = Path.GetRelativePath(sourcePath, filePath).Replace("\\", "/");
-                    var entry = archive.CreateEntry(relativePath);
-                    using (var entryStream = entry.Open())
-                    using (var fileStream = File.OpenRead(filePath))
-                    {
-                        fileStream.CopyTo(entryStream);
-                    }
-                }
-            }
-            else
-            {
-                throw new FileNotFoundException($"Source path '{sourcePath}' does not exist.");
+                File.Delete(tarFilePath);
             }
         }
-
-        memoryStream.Seek(0, SeekOrigin.Begin); // Reset stream in order to read from start
-        return memoryStream;
     }
 
     public async Task<string> EnsureVolumeExistsAsync(string volumeName)
