@@ -10,7 +10,6 @@ class Program
         var dockerClientWrapper = new DockerClientWrapper();
         var logger = new ConsoleLogger();
         var client = dockerClientWrapper.GetClient();
-
         var docker = new DockerResourceManager(client, logger);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +52,7 @@ class Program
         );
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting for .war file to be extracted, then copy ConnectDB.properties into it");
+        logger.Log($"Waiting 10s for .war file to be extracted, then copy ConnectDB.properties into it");
         await Task.Delay(10000);
         
         string copiedConnectionFile = await docker.CopyToContainerAsync(
@@ -63,7 +62,7 @@ class Program
         ); 
         
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting for .war file to be extracted");
+        logger.Log($"Waiting 10s, then exec .sql on mssql");
         await Task.Delay(10000);
         
         await docker.ExecCommandsAsync(
@@ -73,7 +72,7 @@ class Program
                 "-S", "localhost",
                 "-U", "sa",
                 "-P", "Auto@anhlh",
-                "-i", "/var/opt/mssql/SamplePE.sql"
+                "-i", copiedSqlFile
             ]
         );
 

@@ -23,7 +23,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     /// Execute a command on a specific container
     /// </summary>
     /// <param name="containerId">ID of the container</param>
-    /// <param name="commands">Commands to be execute</param>
+    /// <param name="commands">Commands to be executed</param>
     public async Task ExecCommandsAsync(string containerId, string[] commands)
     {
         try
@@ -319,7 +319,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     /// Remove an existing volume.
     /// </summary>
     /// <param name="volumeName">Name of the volume</param>
-    /// <returns>Return true if can remove the volume or false if can not</returns>
+    /// <returns>Return true if the volume is removed, or false if can not</returns>
     public async Task<bool> RemoveVolumeAsync(string volumeName)
     {
         try
