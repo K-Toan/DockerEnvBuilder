@@ -18,6 +18,48 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     #endregion
 
     #region Container
+    
+    /// <summary>
+    /// Execute a command on a specific container
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
+    /// <param name="commands">Commands to be execute</param>
+    public async Task ExecCommandsAsync(string containerId, string[] commands)
+    {
+        try
+        {
+            // create exec instance
+            var execCreateResponse = await client.Exec.ExecCreateContainerAsync(containerId,
+                new ContainerExecCreateParameters
+                {
+                    AttachStderr = true,
+                    AttachStdout = true,
+                    Cmd = commands
+                });
+
+            string execId = execCreateResponse.ID;
+
+            // start exec commands
+            await client.Exec.StartContainerExecAsync(execId);
+
+            // get output (stdout & stderr)
+            var stream = await client.Exec.InspectContainerExecAsync(execId);
+
+            if (stream.Running)
+            {
+                logger.Log("Executing...");
+            }
+            else
+            {
+                logger.Log("Exec finished with exit code: " + stream.ExitCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex.Message, ex);
+            throw;
+        }
+    }
 
     /// <summary>
     /// Create a container and return its id.
@@ -49,6 +91,12 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
             {
                 logger.Log($"Container '{containerName}' already exists with ID: {existingContainer.ID}");
                 return existingContainer.ID;
+            }
+
+            // ensure network is available if container needed
+            if (!string.IsNullOrEmpty(networkName))
+            {
+                await EnsureNetworkExistsAsync(networkName);
             }
 
             // creating new container
@@ -145,7 +193,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     #region Network
 
     /// <summary>
-    /// Ensure a network is existed.
+    /// Ensure a network is existed. If not, create a new one
     /// </summary>
     /// <param name="networkName">Name of the network</param>
     /// <returns>Return network ID or throw if error</returns>
@@ -158,14 +206,17 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
             if (existingNetwork != null)
             {
+                logger.Log($"Network {networkName} already exists.");
                 return existingNetwork.ID;
             }
 
+            logger.Log($"Network {networkName} is not exists. Try creating new network.");
             var network = await client.Networks.CreateNetworkAsync(new NetworksCreateParameters
             {
                 Name = networkName
             });
 
+            logger.Log($"Network {networkName} has been created.");
             return network.ID;
         }
         catch (Exception ex)
@@ -178,7 +229,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     #endregion
 
     #region Volume
-    
+
     /// <summary>
     /// Copy a file into container volume and return its path.
     /// </summary>
@@ -187,16 +238,21 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     /// <param name="destinationFilePath">Path to destination file/folder</param>
     /// <param name="overwrite">Overwrite existing destination file/folder</param>
     /// <returns>Path to copied file</returns>
-    public async Task<string> CopyToContainerAsync(string containerId, string sourceFilePath, string destinationFilePath,
+    public async Task<string> CopyToContainerAsync(string containerId, string sourceFilePath,
+        string destinationFilePath,
         bool overwrite = true)
     {
-        // create tarfile
+        if (string.IsNullOrEmpty(sourceFilePath) || string.IsNullOrEmpty(destinationFilePath))
+            throw new ArgumentNullException(nameof(sourceFilePath));
+
+        // create tar file
         string tarFilePath = TarCompressor.CreateTarFile(sourceFilePath);
         if (!File.Exists(tarFilePath))
         {
             logger.Log($"Cannot create tar file {tarFilePath}.");
             return null;
         }
+
         logger.Log($"Tar file {tarFilePath} has been created.");
 
         try
@@ -227,7 +283,9 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
 
         // return copied file path
-        return Path.Combine(Path.GetDirectoryName(destinationFilePath), Path.GetFileName(sourceFilePath));
+        string copiedFilePath = Path.Combine(Path.GetDirectoryName(destinationFilePath), Path.GetFileName(sourceFilePath)).Replace("\\", "/");
+        logger.Log($"Copied file path: {copiedFilePath}");
+        return copiedFilePath;
     }
 
     /// <summary>
