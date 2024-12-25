@@ -153,7 +153,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         bool overwrite = true)
     {
         // create tarfile
-        string tarFilePath = TarCompressor.CreateTarFile(sourceFilePath, @"D:/Temps/SamplePE.tar");
+        string tarFilePath = TarCompressor.CreateTarFile(sourceFilePath);
         if (File.Exists(tarFilePath))
             logger.Log($"Tar file {tarFilePath} created.");
         
