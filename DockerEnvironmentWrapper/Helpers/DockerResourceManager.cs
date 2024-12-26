@@ -10,10 +10,61 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 {
     #region Resource
 
-    public void SetLimit()
+    /// <summary>
+    /// Updates the resource limits (CPU and memory) for a Docker container identified by its containerId.
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
+    /// <param name="cpuCount">The number of CPUs that container can use. Default is 1.</param>
+    /// <param name="cpuPeriod">CPU period (in microseconds) for controlling CPU allocation. Default is 100000 (100ms).</param>
+    /// <param name="cpuQuota">The CPU quota (in microseconds) within the CPU period. It determines the maximum CPU time the container can use. Default is 50000 (50% of CPU time).</param>
+    /// <param name="cpuShares">The relative weight of the container's CPU usage, with higher values indicating a higher priority. Default is 1024.</param>
+    /// <param name="memory">The memory limit for the container, specified in MB. Default is 512 MB.</param>
+    /// <param name="memorySwap">The maximum amount of memory plus swap the container can use, specified in MB. Default is 512 MB.</param>
+    public async Task SetContainerResourceLimitAsync(
+        string containerId,
+        int cpuCount = 1,
+        long cpuPeriod = 100000,
+        long cpuQuota = 50000,
+        long cpuShares = 1024,
+        long memory = 512,
+        long memorySwap = 512
+    )
     {
-        // not implemented
-        return;
+        try
+        {
+            // check if container is running or not
+            var containerInspect = await client.Containers.InspectContainerAsync(containerId);
+            if (containerInspect.State.Running == false)
+            {
+                logger.LogWarning($"Container {containerId} is not running. Cannot set resource limit.");
+                return;
+            }
+            
+            // update container resource limit
+            var resourceParams = new ContainerUpdateParameters()
+            {
+                CPUCount = cpuCount,
+                CPUPercent = 50,
+                CPUPeriod = cpuPeriod,
+                CPUQuota = cpuQuota,
+                CPUShares = cpuShares,
+                Memory = memory * 1024 * 1024,
+                MemorySwap = memorySwap * 1024 * 1024
+            };
+            
+            var updateResponse = await client.Containers.UpdateContainerAsync(containerId, resourceParams);
+            
+            if (updateResponse.Warnings is { Count: > 0 })
+            {
+                updateResponse.Warnings.ToList().ForEach(logger.LogWarning);
+            }
+
+            logger.Log($"{containerId} resource updated!");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Error while limiting resource to {containerId}", ex);
+        }
     }
 
     #endregion
@@ -71,7 +122,7 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
             // get execution result
             var execInspectResponse = await client.Exec.InspectContainerExecAsync(execCreateResponse.ID);
-        
+
             if (execInspectResponse.ExitCode != 0)
             {
                 throw new Exception($@"Command execution failed with exit code {execInspectResponse.ExitCode}.
@@ -322,7 +373,9 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
 
         // return copied file path
-        string copiedFilePath = Path.Combine(Path.GetDirectoryName(destinationFilePath), Path.GetFileName(sourceFilePath)).Replace("\\", "/");
+        string copiedFilePath =
+            Path.Combine(Path.GetDirectoryName(destinationFilePath) ?? "/", Path.GetFileName(sourceFilePath))
+                .Replace("\\", "/");
         logger.Log($"Copied file path: {copiedFilePath}");
         return copiedFilePath;
     }

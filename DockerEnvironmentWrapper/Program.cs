@@ -7,6 +7,8 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // initialization
         var dockerClientWrapper = new DockerClientWrapper();
         var logger = new ConsoleLogger();
         var client = dockerClientWrapper.GetClient();
@@ -23,7 +25,7 @@ class Program
             volumeName: "test-mssql-volume:/var/opt/mssql",
             networkName: "test-network"
         );
-        
+
         string tomcatContainerId = await docker.CreateContainerAsync(
             containerName: "test-tomcat-container",
             imageName:"tomcat:latest",
@@ -38,32 +40,13 @@ class Program
         await docker.StartContainerAsync(mssqlContainerId);
         await docker.StartContainerAsync(tomcatContainerId);
         
-        // copy files to volume
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // copy files to volume, then exec it
         string copiedSqlFile = await docker.CopyToContainerAsync(
             mssqlContainerId,
             @"D:/Temps/cp/Solution/Meta/SamplePE.sql",
             @"/var/opt/mssql/"
         );
-        
-        string copiedWarFile = await docker.CopyToContainerAsync(
-            tomcatContainerId,
-            @"D:/Temps/cp/Solution/StudentProjects/he171478/Q3_HE171478.war",
-            @"/usr/local/tomcat/webapps/"
-        );
-
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting 10s for .war file to be extracted, then copy ConnectDB.properties into it");
-        await Task.Delay(10000);
-        
-        string copiedConnectionFile = await docker.CopyToContainerAsync(
-            tomcatContainerId,
-            @"D:/Temps/cp/Solution/Meta/ConnectDB.properties",
-            @$"{(Path.GetDirectoryName(copiedWarFile) + "/" + Path.GetFileNameWithoutExtension(copiedWarFile))}/WEB-INF/".Replace("\\", "/")
-        ); 
-        
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting 10s, then exec {copiedSqlFile} on mssql");
-        await Task.Delay(10000);
         
         await docker.ExecCommandsAsync(
             containerId: mssqlContainerId,
@@ -77,6 +60,23 @@ class Program
             ],
             user: "root"
         );
+        
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // copy .war file and wait for it to be extracted, then copy connection properties file into /WEB-INF/ folder
+        string copiedWarFile = await docker.CopyToContainerAsync(
+            tomcatContainerId,
+            @"D:/Temps/cp/Solution/StudentProjects/he171478/Q3_HE171478.war",
+            @"/usr/local/tomcat/webapps/"
+        );
+
+        logger.Log($"Waiting 10s for .war file to be extracted, then copy ConnectDB.properties into it");
+        await Task.Delay(10000);
+        
+        string copiedConnectionFile = await docker.CopyToContainerAsync(
+            tomcatContainerId,
+            @"D:/Temps/cp/Solution/Meta/ConnectDB.properties",
+            @$"{(Path.GetDirectoryName(copiedWarFile) + "/" + Path.GetFileNameWithoutExtension(copiedWarFile))}/WEB-INF/".Replace("\\", "/")
+        ); 
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         logger.Log($"Press any key to remove container and its volumes...");
