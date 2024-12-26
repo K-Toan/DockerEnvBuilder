@@ -1,3 +1,4 @@
+using System.Text;
 using Logger;
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -18,13 +19,14 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
     #endregion
 
     #region Container
-    
+
     /// <summary>
     /// Execute a command on a specific container
     /// </summary>
     /// <param name="containerId">ID of the container</param>
     /// <param name="commands">Commands to be executed</param>
-    public async Task ExecCommandsAsync(string containerId, string[] commands)
+    /// <param name="user">Docker user's privilege</param>
+    public async Task ExecCommandsAsync(string containerId, string[] commands, string user = "root")
     {
         try
         {
@@ -34,25 +36,51 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
                 {
                     AttachStderr = true,
                     AttachStdout = true,
-                    Cmd = commands
+                    Cmd = commands,
+                    Tty = false,
+                    User = user
                 });
 
-            string execId = execCreateResponse.ID;
+            using var stream = await client.Exec.StartAndAttachContainerExecAsync(
+                execCreateResponse.ID,
+                false); // tty = false to distinguish stdout and stderr
 
-            // start exec commands
-            await client.Exec.StartContainerExecAsync(execId);
+            // read output streams
+            var outputBuilder = new StringBuilder();
+            var errorBuilder = new StringBuilder();
 
-            // get output (stdout & stderr)
-            var stream = await client.Exec.InspectContainerExecAsync(execId);
-
-            if (stream.Running)
+            var buffer = new byte[4096];
+            while (true)
             {
-                logger.Log("Executing...");
+                var result = await stream.ReadOutputAsync(buffer, 0, buffer.Length, CancellationToken.None);
+                if (result.Count == 0)
+                    break;
+
+                var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                if (result.Target == MultiplexedStream.TargetStream.StandardOut)
+                {
+                    outputBuilder.Append(text);
+                    logger.Log($"Output: {text}");
+                }
+                else if (result.Target == MultiplexedStream.TargetStream.StandardError)
+                {
+                    errorBuilder.Append(text);
+                    logger.LogError($"Error: {text}");
+                }
             }
-            else
+
+            // get execution result
+            var execInspectResponse = await client.Exec.InspectContainerExecAsync(execCreateResponse.ID);
+        
+            if (execInspectResponse.ExitCode != 0)
             {
-                logger.Log("Exec finished with exit code: " + stream.ExitCode);
+                throw new Exception($@"Command execution failed with exit code {execInspectResponse.ExitCode}.
+                Stdout: {outputBuilder}
+                Stderr: {errorBuilder}
+                Commands: {string.Join(" ", commands)}");
             }
+
+            logger.Log($"Command executed successfully. Output: {outputBuilder}");
         }
         catch (Exception ex)
         {
@@ -174,12 +202,23 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
         }
     }
 
-    public async Task RemoveContainerAsync(string containerId, bool force = false)
+    /// <summary>
+    /// Remove a container and its volume
+    /// </summary>
+    /// <param name="containerId">ID of the container</param>
+    /// <param name="removeVolumes">Remove volumes</param>
+    /// <param name="force">Force to remove</param>
+    public async Task RemoveContainerAsync(string containerId, bool removeVolumes = false, bool force = false)
     {
         try
         {
-            await client.Containers.RemoveContainerAsync(containerId,
-                new ContainerRemoveParameters() { Force = force });
+            await client.Containers.RemoveContainerAsync(
+                containerId,
+                new ContainerRemoveParameters()
+                {
+                    Force = force,
+                    RemoveVolumes = removeVolumes
+                });
             logger.Log($"Container {containerId} has been removed.");
         }
         catch (Exception ex)
@@ -307,35 +346,6 @@ public class DockerResourceManager(DockerClient client, ILogger logger)
 
             var volume = await client.Volumes.CreateAsync(new VolumesCreateParameters { Name = volumeName });
             return volume.Name;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"Error ensuring volume existence: {ex.Message}");
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Remove an existing volume.
-    /// </summary>
-    /// <param name="volumeName">Name of the volume</param>
-    /// <returns>Return true if the volume is removed, or false if can not</returns>
-    public async Task<bool> RemoveVolumeAsync(string volumeName)
-    {
-        try
-        {
-            var volumes = await client.Volumes.ListAsync();
-            var existingVolume = volumes.Volumes.FirstOrDefault(v => v.Name == volumeName);
-
-            if (existingVolume != null)
-            {
-                var removed = volumes.Volumes.Remove(new VolumeResponse() { Name = volumeName });
-                logger.Log($"Removed volume {volumeName} successfully.");
-                return removed;
-            }
-
-            logger.Log($"Volume {volumeName} was not found.");
-            return false;
         }
         catch (Exception ex)
         {

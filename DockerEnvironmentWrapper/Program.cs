@@ -19,7 +19,7 @@ class Program
             imageName: "mcr.microsoft.com/mssql/server:2019-latest",
             containerPort: 1433,
             hostPort: 1433,
-            envParams: ["ACCEPT_EULA=Y", "MSSQL_SA_PASSWORD=Auto@anhlh"],
+            envParams: ["ACCEPT_EULA=Y", "SA_PASSWORD=Auto@anhlh"],
             volumeName: "test-mssql-volume:/var/opt/mssql",
             networkName: "test-network"
         );
@@ -47,7 +47,7 @@ class Program
         
         string copiedWarFile = await docker.CopyToContainerAsync(
             tomcatContainerId,
-            @"D:/Temps/cp/Solution/StudentProjects/he171478/Q1_HE171478.war",
+            @"D:/Temps/cp/Solution/StudentProjects/he171478/Q3_HE171478.war",
             @"/usr/local/tomcat/webapps/"
         );
 
@@ -62,35 +62,33 @@ class Program
         ); 
         
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting 10s, then exec .sql on mssql");
+        logger.Log($"Waiting 10s, then exec {copiedSqlFile} on mssql");
         await Task.Delay(10000);
         
         await docker.ExecCommandsAsync(
             containerId: mssqlContainerId,
             commands: [
-                "/opt/mssql-tools18/bin/sqlcmd", "-C",
+                "/opt/mssql-tools18/bin/sqlcmd",
+                "-C",
                 "-S", "localhost",
                 "-U", "sa",
                 "-P", "Auto@anhlh",
                 "-i", copiedSqlFile
-            ]
+            ],
+            user: "root"
         );
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        logger.Log($"Waiting to stop and remove container and volume");
-        await Task.Delay(10000);
-        
-        // try removing volume before stop the container
-        // await docker.RemoveVolumeAsync("/var/opt/mssql");
+        logger.Log($"Press any key to remove container and its volumes...");
+        Console.ReadKey();
         
         // stop container
         await docker.StopContainerAsync(mssqlContainerId);
         await docker.StopContainerAsync(tomcatContainerId);
 
-        // remove
-        await docker.RemoveContainerAsync(mssqlContainerId);
-        await docker.RemoveContainerAsync(tomcatContainerId);
+        // remove 
+        await docker.RemoveContainerAsync(mssqlContainerId, true, true);
+        await docker.RemoveContainerAsync(tomcatContainerId, true, true);
 
-        Console.ReadKey();
     }
 }
