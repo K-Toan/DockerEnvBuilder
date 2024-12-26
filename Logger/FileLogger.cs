@@ -24,6 +24,11 @@ public class FileLogger : ILogger
         WriteLog("INFO", message);
     }
 
+    public void LogWarning(string message)
+    {
+        WriteLog("WARNING", message);
+    }
+    
     public void LogError(string message, Exception ex = null)
     {
         var errorMessage = ex == null
